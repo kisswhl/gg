@@ -1,0 +1,65 @@
+1.首先检查Hadoop相关进程，是否已经启动。若未启动，切换到/apps/hadoop/sbin目录下，启动Hadoop。
+jps  
+cd /apps/hadoop/sbin  
+./start-all.sh  
+2.切换目录到/apps/flume/conf目录下，创建Flume的配置文件。
+cd /apps/flume/conf  
+touch syslog_mem_hdfsandlogger.conf  
+3.使用vim打开syslog_mem_hdfsandlogger.conf文件。
+vim syslog_mem_hdfsandlogger.conf  
+定义各个组件
+#定义各个组件  
+agent1.sources  = src  
+agent1.channels = ch1 ch2  
+agent1.sinks    = des1 des2  
+配置Flume的Source为syslogtcp，并监听6868端口。
+#配置source  
+agent1.sources.src.type = syslogtcp  
+agent1.sources.src.bind = localhost  
+agent1.sources.src.port = 6868  
+配置两个Channel，都设置为memory。
+#配置channel  
+agent1.channels.ch1.type = memory  
+agent1.channels.ch2.type = memory  
+配置hdfs sink，将数据发送到HDFS上。
+#配置hdfs sink  
+agent1.sinks.des1.type = hdfs  
+agent1.sinks.des1.hdfs.path = hdfs://localhost:9000/myflume4/syslog_mem_hdfsandlogger/  
+agent1.sinks.des1.hdfs.useLocalTimeStamp = true  
+#设置flume临时文件的前缀为 . 或 _ 在hive加载时，会忽略此文件。  
+agent1.sinks.des1.hdfs.inUsePrefix=_  
+#设置flume写入文件的前缀是什么  
+agent1.sinks.des1.hdfs.filePrefix = q7  
+agent1.sinks.des1.hdfs.fileType = DataStream  
+agent1.sinks.des1.hdfs.writeFormat = Text  
+#hdfs创建多久会新建一个文件，0为不基于时间判断,单位为秒  
+agent1.sinks.des1.hdfs.rollInterval = 20  
+#hdfs写入的文件达到多大时，创建新文件 0为不基于空间大小,单位B  
+agent1.sinks.des1.hdfs.rollSize = 10  
+#hdfs有多少条消息记录时，创建文件，0为不基于条数判断  
+agent1.sinks.des1.hdfs.rollCount = 5  
+#hdfs空闲多久就新建一个文件,单位秒  
+agent1.sinks.des1.hdfs.idleTimeout = 20  
+配置logger sink。
+#配置logger sink  
+agent1.sinks.des2.type = logger  
+把上面设置的组件关联起来。
+##下面是把上面设置的组件关联起来（把点用线连起来）  
+agent1.sources.src.channels = ch1 ch2  
+agent1.sinks.des1.channel   = ch1  
+agent1.sinks.des2.channel   = ch2  
+4.启动Flume，执行收集工作。
+切换目录到/apps/flume目录下，启动flume-ng的配置。
+cd /apps/flume  
+flume-ng agent -c /conf -f /apps/flume/conf/syslog_mem_hdfsandlogger.conf -n agent1 -Dflume.root.logger=DEBUG,console  
+新打开一个窗口，执行nc命令，向6868端口发送消息。
+echo "hello can you hear me?" | nc localhost 6868  
+5.查看执行效果
+可以看到，执行flume-ng配置的界面输出效果为：
+ 
+从上面可以看到sink.LoggerSink，也就是发送给logger的输出。
+再来查看HDFS上的输出。
+hadoop fs -ls -R /  
+hadoop fs -cat /myflume4/syslog_mem_hdfsandlogger/*  
+ 
+6.在执行flume-ng脚本的界面，输入Ctrl + c退出当前终端。到此实验已经完毕！

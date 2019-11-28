@@ -1,0 +1,95 @@
+1.切换目录到/apps/hadoop/sbin下，启动hadoop。
+
+cd /apps/hadoop/sbin  
+./start-all.sh  
+2.在linux上，创建一个目录/data/mapreduce1。
+
+mkdir -p /data/mapreduce1  
+3.切换到/data/mapreduce1目录下，使用wget命令从网址 http://192.168.1.100:60000/allfiles/mapreduce1/buyer_favorite1，下载文本文件buyer_favorite1。
+
+cd /data/mapreduce1  
+wget  http://192.168.1.100:60000/allfiles/mapreduce1/buyer_favorite1  
+依然在/data/mapreduce1目录下，使用wget命令，从
+http://192.168.1.100:60000/allfiles/mapreduce1/hadoop2lib.tar.gz，下载项目用到的依赖包。
+
+wget  http://192.168.1.100:60000/allfiles/mapreduce1/hadoop2lib.tar.gz  
+将hadoop2lib.tar.gz解压到当前目录下。
+
+tar -xzvf hadoop2lib.tar.gz  
+4.将linux本地/data/mapreduce1/buyer_favorite1，上传到HDFS上的/mymapreduce1/in目录下。若HDFS目录不存在，需提前创建。
+
+hadoop fs -mkdir -p /mymapreduce1/in  
+hadoop fs -put /data/mapreduce1/buyer_favorite1 /mymapreduce1/in 
+5.打开Eclipse，新建Java Project项目。
+并将项目名设置为mapreduce1
+6.在项目名mapreduce1下，新建package包。
+并将包命名为mapreduce 。
+7.在创建的包mapreduce下，新建类
+并将类命名为WordCount
+8.添加项目所需依赖的jar包，右键单击项目名，新建一个目录hadoop2lib，用于存放项目所需的jar包。
+将linux上/data/mapreduce1目录下，hadoop2lib目录中的jar包，全部拷贝到eclipse中，mapreduce1项目的hadoop2lib目录下。
+选中hadoop2lib目录下所有的jar包，单击右键，选择Build Path=>Add to Build Path
+9.编写Java代码，并描述其设计思路。
+下图描述了该mapreduce的执行过程
+ 
+大致思路是将hdfs上的文本作为输入，MapReduce通过InputFormat会将文本进行切片处理，并将每行的首字母相对于文本文件的首地址的偏移量作为输入键值对的key，文本内容作为输入键值对的value，经过在map函数处理，输出中间结果<word,1>的形式，并在reduce函数中完成对每个单词的词频统计。整个程序代码主要包括两部分：Mapper部分和Reducer部分。
+完整代码
+
+package mapreduce;  
+import java.io.IOException;  
+import java.util.StringTokenizer;  
+import org.apache.hadoop.fs.Path;  
+import org.apache.hadoop.io.IntWritable;  
+import org.apache.hadoop.io.Text;  
+import org.apache.hadoop.mapreduce.Job;  
+import org.apache.hadoop.mapreduce.Mapper;  
+import org.apache.hadoop.mapreduce.Reducer;  
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;  
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;  
+public class WordCount {  
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {  
+        Job job = Job.getInstance();  
+        job.setJobName("WordCount");  
+        job.setJarByClass(WordCount.class);  
+        job.setMapperClass(doMapper.class);  
+        job.setReducerClass(doReducer.class);  
+        job.setOutputKeyClass(Text.class);  
+        job.setOutputValueClass(IntWritable.class);  
+        Path in = new Path("hdfs://localhost:9000/mymapreduce1/in/buyer_favorite1");  
+        Path out = new Path("hdfs://localhost:9000/mymapreduce1/out");  
+        FileInputFormat.addInputPath(job, in);  
+        FileOutputFormat.setOutputPath(job, out);  
+        System.exit(job.waitForCompletion(true) ? 0 : 1);  
+    }  
+    public static class doMapper extends Mapper<Object, Text, Text, IntWritable>{  
+        public static final IntWritable one = new IntWritable(1);  
+        public static Text word = new Text();  
+        @Override  
+        protected void map(Object key, Text value, Context context)  
+                    throws IOException, InterruptedException {  
+            StringTokenizer tokenizer = new StringTokenizer(value.toString(), "\t");  
+                word.set(tokenizer.nextToken());  
+                context.write(word, one);  
+        }  
+    }  
+    public static class doReducer extends Reducer<Text, IntWritable, Text, IntWritable>{  
+        private IntWritable result = new IntWritable();  
+        @Override  
+        protected void reduce(Text key, Iterable<IntWritable> values, Context context)  
+        throws IOException, InterruptedException {  
+        int sum = 0;  
+        for (IntWritable value : values) {  
+        sum += value.get();  
+        }  
+        result.set(sum);  
+        context.write(key, result);  
+        }  
+    }  
+}  
+10.在WordCount类文件中，单击右键=>Run As=>Run on Hadoop选项，将MapReduce任务提交到Hadoop中。
+11.待执行完毕后，打开终端或使用hadoop eclipse插件，查看hdfs上，程序输出的实验结果。
+hadoop fs -ls /mymapreduce1/out  
+hadoop fs -cat /mymapreduce1/out/part-r-00000  
+
+现有北京2018年天气情况数据文件，文件名称为BJweather2018.txt，包含两个字段：日期和天气情况，字段分隔符为“\t”，要求使用MapReduce统计2018年每种天气情况的天数，运行结果的截图插入到左侧报告中，将HDFS上生成的结果文件保存到本地/data/ans13目录下并重命名为ans_ans1.txt。
+外加tokenizer.nextToken()

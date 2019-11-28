@@ -1,0 +1,116 @@
+1.首先检查Hadoop相关进程，是否已经启动。若未启动，切换到/apps/hadoop/sbin目录下，启动Hadoop。
+ 
+jps  
+cd /apps/hadoop/sbin  
+./start-all.sh  
+2.下面切换到/apps/zookeeper/bin目录下，启动ZooKeeper服务。
+ 
+cd /apps/zookeeper/bin  
+./zkServer.sh start  
+检查ZooKeeper状态。
+ 
+./zkServer.sh status  
+3.切换目录到/data/script目录下（若目录不存在则提前创建），创建Flume的配置文件syslog_mem_hdfsandkafka.conf。
+ 
+mkdir -p /data/script  
+cd /data/script  
+touch syslog_mem_hdfsandkafka.conf  
+4.使用vim打开syslog_mem_hdfsandlogger.conf文件。
+ 
+vim syslog_mem_hdfsandkafka.conf  
+将以下各组件配置内容添加到syslog_mem_hdfsandkafka.conf文件中。
+ 
+#定义各个组件  
+agent1.sources  = src  
+agent1.channels = ch_hdfs ch_kafka  
+agent1.sinks    = des_hdfs des_kafka  
+配置Source：
+ 
+#配置source  
+agent1.sources.src.type = syslogtcp  
+agent1.sources.src.bind = localhost  
+agent1.sources.src.port = 6666  
+配置Channel：
+ 
+#配置channel  
+agent1.channels.ch_hdfs.type = memory  
+agent1.channels.ch_kafka.type = memory  
+配置HDFS Sink：
+ 
+#配置hdfs sink  
+agent1.sinks.des_hdfs.type = hdfs  
+agent1.sinks.des_hdfs.hdfs.path = hdfs://localhost:9000/myflume/syslog_mem_hdfsandkafka/  
+agent1.sinks.des_hdfs.hdfs.useLocalTimeStamp = true  
+#设置flume临时文件的前缀为 . 或 _ 在hive加载时，会忽略此文件。  
+agent1.sinks.des_hdfs.hdfs.inUsePrefix=_  
+#设置flume写入文件的前缀是什么  
+agent1.sinks.des_hdfs.hdfs.filePrefix = q7  
+agent1.sinks.des_hdfs.hdfs.fileType = DataStream  
+agent1.sinks.des_hdfs.hdfs.writeFormat = Text  
+#hdfs创建多久会新建一个文件，0为不基于时间判断,单位为秒  
+agent1.sinks.des_hdfs.hdfs.rollInterval = 20  
+#hdfs写入的文件达到多大时，创建新文件 0为不基于空间大小,单位B  
+agent1.sinks.des_hdfs.hdfs.rollSize = 10  
+#hdfs有多少条消息记录时，创建文件，0为不基于条数判断  
+agent1.sinks.des_hdfs.hdfs.rollCount = 5  
+#hdfs空闲多久就新建一个文件,单位秒  
+agent1.sinks.des_hdfs.hdfs.idleTimeout = 20  
+配置Kafka Sink：
+ 
+#配置kafka sink  
+agent1.sinks.des_kafka.type = org.apache.flume.sink.kafka.KafkaSink  
+agent1.sinks.des_kafka.brokerList = localhost:9092  
+agent1.sinks.des_kafka.topic = flumekafka  
+agent1.sinks.des_kafka.batchSize=100  
+agent1.sinks.des_kafka.requiredAcks=1  
+可以看到，这里的topic为flumekafka，也就是Flume将收集来的数据，通过KafkaSink，发送到flumekafka这个topic中。
+将上面设置的组件关联起来。（把点用线连起来）
+ 
+##下面是把上面设置的组件关联起来（把点用线连起来）  
+agent1.sources.src.channels = ch_hdfs ch_kafka  
+agent1.sinks.des_hdfs.channel    = ch_hdfs  
+agent1.sinks.des_kafka.channel   = ch_kafka  
+5.启动kafka-server。
+ 
+cd /apps/kafka  
+bin/kafka-server-start.sh config/server.properties  
+另起一窗口，在Kafka中创建topic，命名为flumekafka。
+ 
+cd /apps/kafka  
+bin/kafka-topics.sh \  
+--create \  
+--zookeeper localhost:2181 \  
+--replication-factor 1 \  
+--topic flumekafka \  
+--partitions 1  
+6.切换到flume的bin目录下，读取Flume配置文件，启动Flume。
+ 
+cd /apps/flume/bin  
+./flume-ng agent -c /data/script -f /data/script/syslog_mem_hdfsandkafka.conf -n agent1 -Dflume.root.logger=DEBUG,console  
+另起一窗口，切换到/apps/kafka目录下，启动Kafka的console consumer来消费数据。
+ 
+cd /apps/kafka  
+bin/kafka-console-consumer.sh --zookeeper localhost:2181 --topic flumekafka --from-beginning  
+另起一窗口，使用nc命令，向6666端口，发送数据。
+ 
+echo "hello can you hear me?" | nc localhost 6666  
+7.查看Kafka的console consumer端，是否有内容输出，检验程序的运行状态。 
+执行nc的窗口：
+ 
+Flume-ng的输出：
+ 
+kafka-server的变化：
+ 
+kafka-console-consumer的输出：
+ 
+再来看一下HDFS端的文件：
+ 
+hadoop fs -ls /myflume/syslog_mem_hdfsandkafka 
+
+1.编辑spooldir_mem_kafka.conf文件，存放至/apps/flume/conf目录下。
+
+2.Source类型为spooldir，监控本地/data/ans25文件夹，Channel类型为memory，Sink类型为kafka。
+
+3.创建Kafka的Topic，名为flumesendkafka；创建Kafka的消费端kafka-console-consumer，接收Topic的消息并输出至控制台。
+
+4.开启Flume，将实验数据下载至/data/ans25文件夹下，观察Kafka消费端输出，截图插入至左侧报告中。

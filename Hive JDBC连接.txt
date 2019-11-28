@@ -1,0 +1,113 @@
+1.首先在Linux本地，新建/data/hive6目录，用于存放所需文件。
+mkdir -p /data/hive6  
+2.切换到/data/hive6目录下，下载依赖包 
+cd /data/hive6  
+wget http://192.168.1.100:60000/allfiles/hive6/lib.tar.gz  
+3.解压lib.tar.gz文件至当前文件夹
+tar zxvf lib.tar.gz  
+4.切换到/apps/hive/conf目录下，修改hive-site.xml文件，将以下配置写入
+<property>  
+   <name>hive.server2.thrift.port</name>  
+   <value>10000</value>  
+</property>  
+<property>  
+    <name>hive.server2.thrift.bind.host</name>  
+    <value>127.0.0.1</value>  
+    </property>  
+5.切换到/apps/hadoop/sbin目录下，开启Hadoop相关进程 
+cd /apps/hadoop/sbin  
+./start-all.sh  
+6.开启mysql服务
+sudo service mysql start  
+7.切换到/apps/hive目录下，启动hiveserver2 
+cd /apps/hive  
+  
+./bin/hive --service hiveserver2  
+ 
+8.另外开启一个终端模拟器，使用netstat命令查看一下10000端口
+netstat -nptl | grep 10000  
+ 
+9.切换到/apps/hive/bin目录下，开启beeline
+cd /apps/hive/bin  
+./beeline  
+ 
+10.使用 （!connect jdbc:hive2://ip地址:10000 hiveuser hivepassword ）测试是否可以连接，username和password为创建的用户名和密码。
+!connect jdbc:hive2://127.0.0.1:10000  
+ 
+11.打开eclipse，创建java项目并编写代码，实现Hive的JDBC连接
+创建一个名为hivejdbc的java项目
+12.创建名为hivetest的包
+13.创建一个lib文件夹，用于存放项目依赖的jar包
+14.将之前解压到/data/hive6/lib中的jar包添加到本项目中，并添加路径
+15.创建名为HiveJDBC的类
+16.完整代码为： 
+package hivetest;  
+  
+  
+import java.sql.Connection;  
+import java.sql.DriverManager;  
+import java.sql.ResultSet;  
+import java.sql.SQLException;  
+import java.sql.Statement;  
+  
+public class HiveJDBC {  
+  
+        private static Connection conn=null;  
+  
+        public static void main(String args[]) throws Exception{  
+  
+                try {  
+                          Class.forName("org.apache.hive.jdbc.HiveDriver");  
+  
+                          conn=DriverManager.getConnection("jdbc:hive2://127.0.0.1:10000/hive", "root", "");  
+  
+                          Statement st=conn.createStatement();  
+  
+                          String sql1="select * from tbtest";  
+  
+                          ResultSet rs=st.executeQuery(sql1);  
+  
+                          while(rs.next()){  
+  
+                                  System.out.println(rs.getString(1)+"     "+rs.getString(2));  
+                          }  
+  
+                } catch (ClassNotFoundException e) {  
+  
+                        e.printStackTrace();  
+                } catch (SQLException e) {  
+  
+                        e.printStackTrace();  
+                }  
+  
+  
+        }  
+}  
+程序编写完成后，我们需要在hive中准备一些测试数据。
+17.另外开启一个终端模拟器，开启hive 
+hive  
+ 
+18.创建并使用hive数据库
+create database hive;  
+use hive;  
+19.创建一个tbtest表，包含两个字段（name string和age int），分隔符为 ’\t‘
+create table tbtest(name string,age int) row format delimited fields terminated by '\t';  
+20.另开一个终端模拟器，切换到/data目录下并使用vim命令编辑一个文件，名为data.txt
+cd /data  
+vim data.txt  
+21.将以下内容写入到data.txt文件中
+student1    18  
+student2    20  
+student3    22  
+22.在开启hive的终端模拟器，将/data/data.txt文件导入到tbtest表中
+load data local inpath'/data/data.txt' into table tbtest;  
+ 
+23.打开eclipse，执行之前编写的代码，测试hive是否能够通过JDBC连接
+在console界面能看到hive中的tbtest表信息，说明Hive JDBC连接成功，接下来我们就可以更改代码来实现我们自己的功能了。
+实验至此就结束了。
+
+1.开启Hive，创建并使用ans数据库。
+
+2.在ans库中创建买家行为日志表，名为buyer_log，包含ID（id） 、用户ID（buyer_id） 、时间（dt） 、 地点（ip） 、操作类型（opt_type）5个字段，字符类型为string，以'\t'为分隔符，并将本题下载的buyer_log数据加载至该表。
+
+3.编写Java代码，实现功能为：连接Hive，读取buyer_log表，统计出buyer_log表中opt_type=1的用户ID(buyer_id)，将结果输出至/data/ans18目录下的ans_ans1.txt。

@@ -1,0 +1,308 @@
+现有buyer_log表，存储了买家行为日志，包含四个字段（ID，用户ID，时间，IP，操作类型）。
+
+ID     用户ID       时间                    IP          操作类型  
+461    10181    2010-03-26 19:45:07    123.127.164.252    1  
+462    10262    2010-03-26 19:55:10    123.127.164.252    1  
+463    20001    2010-03-29 14:28:02    221.208.129.117    2  
+464    20001    2010-03-29 14:28:02    221.208.129.117    1  
+465    20002    2010-03-30 10:56:35    222.44.94.235    2  
+466    20002    2010-03-30 10:56:35    222.44.94.235    1  
+481    10181    2010-03-31 16:48:43    123.127.164.252    1  
+482    10181    2010-04-01 17:35:05    123.127.164.252    1  
+483    10181    2010-04-02 10:34:20    123.127.164.252    1  
+484    20001    2010-04-04 16:38:22    221.208.129.38    1  
+1.首先检查Hadoop相关进程，是否已经启动。若未启动，切换到/apps/hadoop/sbin目录下，启动Hadoop。
+
+jps  
+cd /apps/hadoop/sbin  
+./start-all.sh  
+2.在Linux本地新建/data/sqoop2目录。
+
+mkdir -p /data/sqoop2  
+切换到/data/sqoop2目录下，使用wget命令，下载http://192.168.1.100:60000/allfiles/sqoop2中的文件。
+
+cd /data/sqoop2  
+wget http://192.168.1.100:60000/allfiles/sqoop2/buyer_log  
+3.开启mysql服务。（密码：zhangyu）
+
+sudo service mysql start  
+连接Mysql，用户名为root，密码为strongs。
+
+ mysql -u root -p  
+
+4.在Mysql中创建数据库mydb，并使用mydb数据库。
+
+create database mydb;  
+use mydb;  
+在mydb数据库中创建表record。
+
+create table record  
+(  
+  id varchar(100),  
+  buyer_id varchar(100),  
+  dt varchar(100),  
+  ip varchar(100),  
+  opt_type varchar(100)  
+);  
+5.将Linux本地/data/sqoop2/buyer_log里的内容，导入的mydb数据库record表中。
+
+load data infile '/data/sqoop2/buyer_log' into table record fields terminated by '\t';  
+查看record表中内容。
+
+select * from record;  
+
+6，另开一个窗口，使用Sqoop查看Mysql中的数据库。此步目的是检查Sqoop以及Mysql是否可以正常使用。
+
+sqoop list-databases \  
+--connect jdbc:mysql://localhost:3306/ \  
+--username root \  
+--password strongs  
+
+使用Sqoop查看Mysql中的表 (在jdbc连接字符串中添加了数据库的名称。用于直接访问数据库实例)。
+
+sqoop list-tables \  
+--connect jdbc:mysql://localhost:3306/mydb \  
+--username root \  
+--password strongs  
+
+使用Sqoop将Mysql中的数据导入到HDFS
+1.使用Sqoop将Mysql中mydb数据库record表里的数据导入到HDFS/mysqoop2目录里。（HDFS上的/mysqoop2目录，不需要提前创建）。
+
+sqoop import \  
+--connect jdbc:mysql://localhost:3306/mydb \  
+--username root \  
+--password strongs \  
+--table record -m 1 \  
+--target-dir /mysqoop2  
+导入过程：
+
+zhangyu@d8690154f9f9:/$ sqoop import \  
+> --connect jdbc:mysql://localhost:3306/mydb \  
+> --username root \  
+> --password strongs \  
+> --table record -m 1 \  
+> --target-dir /mysqoop2  
+17/01/09 10:39:36 INFO sqoop.Sqoop: Running Sqoop version: 1.4.5-cdh5.4.5  
+17/01/09 10:39:36 WARN tool.BaseSqoopTool: Setting your password on the command-line is insecure. Consider using -P instead.  
+17/01/09 10:39:36 INFO manager.MySQLManager: Preparing to use a MySQL streaming resultset.  
+17/01/09 10:39:36 INFO tool.CodeGenTool: Beginning code generation  
+17/01/09 10:39:36 INFO manager.SqlManager: Executing SQL statement: SELECT t.* FROM `record` AS t LIMIT 1  
+17/01/09 10:39:36 INFO manager.SqlManager: Executing SQL statement: SELECT t.* FROM `record` AS t LIMIT 1  
+17/01/09 10:39:36 INFO orm.CompilationManager: HADOOP_MAPRED_HOME is /apps/hadoop  
+注: /tmp/sqoop-zhangyu/compile/c65b69ea715280697cec976a13f5c063/record.java使用或覆盖了已过时的 API。  
+注: 有关详细信息, 请使用 -Xlint:deprecation 重新编译。  
+17/01/09 10:39:38 INFO orm.CompilationManager: Writing jar file: /tmp/sqoop-zhangyu/compile/c65b69ea715280697cec976a13f5c063/record.jar  
+17/01/09 10:39:39 WARN manager.MySQLManager: It looks like you are importing from mysql.  
+17/01/09 10:39:39 WARN manager.MySQLManager: This transfer can be faster! Use the --direct  
+17/01/09 10:39:39 WARN manager.MySQLManager: option to exercise a MySQL-specific fast path.  
+17/01/09 10:39:39 INFO manager.MySQLManager: Setting zero DATETIME behavior to convertToNull (mysql)  
+17/01/09 10:39:39 INFO mapreduce.ImportJobBase: Beginning import of record  
+SLF4J: Class path contains multiple SLF4J bindings.  
+SLF4J: Found binding in [jar:file:/apps/hadoop/share/hadoop/common/lib/slf4j-log4j12-1.7.5.jar!/org/slf4j/impl/StaticLoggerBinder.class]  
+SLF4J: Found binding in [jar:file:/apps/hbase/lib/slf4j-log4j12-1.7.5.jar!/org/slf4j/impl/StaticLoggerBinder.class]  
+SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.  
+SLF4J: Actual binding is of type [org.slf4j.impl.Log4jLoggerFactory]  
+17/01/09 10:39:39 INFO Configuration.deprecation: mapred.jar is deprecated. Instead, use mapreduce.job.jar  
+17/01/09 10:39:39 INFO Configuration.deprecation: mapred.map.tasks is deprecated. Instead, use mapreduce.job.maps  
+17/01/09 10:39:39 INFO client.RMProxy: Connecting to ResourceManager at /0.0.0.0:8032  
+17/01/09 10:39:42 INFO db.DBInputFormat: Using read commited transaction isolation  
+17/01/09 10:39:42 INFO mapreduce.JobSubmitter: number of splits:1  
+17/01/09 10:39:42 INFO mapreduce.JobSubmitter: Submitting tokens for job: job_1483925581790_0028  
+17/01/09 10:39:42 INFO impl.YarnClientImpl: Submitted application application_1483925581790_0028  
+17/01/09 10:39:43 INFO mapreduce.Job: The url to track the job: http://d8690154f9f9:8088/proxy/application_1483925581790_0028/  
+17/01/09 10:39:43 INFO mapreduce.Job: Running job: job_1483925581790_0028  
+17/01/09 10:39:49 INFO mapreduce.Job: Job job_1483925581790_0028 running in uber mode : false  
+17/01/09 10:39:49 INFO mapreduce.Job:  map 0% reduce 0%  
+17/01/09 10:39:55 INFO mapreduce.Job:  map 100% reduce 0%  
+17/01/09 10:39:55 INFO mapreduce.Job: Job job_1483925581790_0028 completed successfully  
+17/01/09 10:39:55 INFO mapreduce.Job: Counters: 30  
+    File System Counters  
+        FILE: Number of bytes read=0  
+        FILE: Number of bytes written=132748  
+        FILE: Number of read operations=0  
+        FILE: Number of large read operations=0  
+        FILE: Number of write operations=0  
+        HDFS: Number of bytes read=87  
+        HDFS: Number of bytes written=475  
+        HDFS: Number of read operations=4  
+        HDFS: Number of large read operations=0  
+        HDFS: Number of write operations=2  
+    Job Counters  
+        Launched map tasks=1  
+        Other local map tasks=1  
+        Total time spent by all maps in occupied slots (ms)=3468  
+        Total time spent by all reduces in occupied slots (ms)=0  
+        Total time spent by all map tasks (ms)=3468  
+        Total vcore-seconds taken by all map tasks=3468  
+        Total megabyte-seconds taken by all map tasks=3551232  
+    Map-Reduce Framework  
+        Map input records=10  
+        Map output records=10  
+        Input split bytes=87  
+        Spilled Records=0  
+        Failed Shuffles=0  
+        Merged Map outputs=0  
+        GC time elapsed (ms)=26  
+        CPU time spent (ms)=1310  
+        Physical memory (bytes) snapshot=328851456  
+        Virtual memory (bytes) snapshot=1475796992  
+        Total committed heap usage (bytes)=824180736  
+    File Input Format Counters  
+        Bytes Read=0  
+    File Output Format Counters  
+        Bytes Written=475  
+17/01/09 10:39:55 INFO mapreduce.ImportJobBase: Transferred 475 bytes in 15.5103 seconds (30.6249 bytes/sec)  
+17/01/09 10:39:55 INFO mapreduce.ImportJobBase: Retrieved 10 records.  
+2.查看HDFS上/mysqoop2目录下的文件内容。
+
+hadoop fs -cat /mysqoop2/part-m-00000  
+
+将HDFS中数据存入到Mysql数据库中
+1.在Mysql窗口，mydb数据库下，新建一张表recordfromhdfs，表结构与record表相同。将HDFS上/mysqoop2/part-m-00000里的数据，导入到Mysql中的recordfromhdfs表中。
+连接Mysql，并创建表recordfromhdfs。
+
+use mydb  
+create table recordfromhdfs like record;  
+2.在另一个窗口，开始导数据。
+
+sqoop export \  
+--connect jdbc:mysql://localhost:3306/mydb?characterEncoding=UTF-8 \  
+--username root \  
+--password strongs \  
+--table recordfromhdfs \  
+--export-dir hdfs://localhost:9000/mysqoop2/part-m-00000  
+注意connect后面 连接字符串要带上编码方式characterEncoding=UTF-8，否则中文数据会有乱码的情况产生。
+3.查看Mysql中recordfromhdfs表中内容：
+
+select * from recordfromhdfs;  
+
+将Mysql中数据导入到HBase中
+1.使用Sqoop将Mysql中mydb数据库record表中的数据，导入到HBase中hbaserecord表中，同时以dt为rowkey。
+输入jps查看HBase相关进程是否已启动，若未启动，则需切换到/apps/hbase/bin目录下，启动HBase。
+
+cd /apps/hbase/bin  
+./start-hbase.sh  
+2.在Linux命令行中，输入hbase shell，进入HBase命令行模式。
+
+hbase shell  
+
+3.开始导数据。
+
+sqoop import \  
+--connect jdbc:mysql://localhost:3306/mydb?characterEncoding=UTF-8 \  
+--username root \  
+--password strongs \  
+--table record \  
+--hbase-create-table \  
+--hbase-table hbaserecord \  
+--column-family mycf \  
+--hbase-row-key dt -m 1  
+
+4.查看HBase中，都有哪些表。
+
+list  
+
+5.查看HBase表hbaserecord里的内容。
+
+scan 'hbaserecord'  
+输出如下：
+
+hbase(main):002:0> scan 'hbaserecord'  
+ROW                             COLUMN+CELL  
+ 2010-03-26 19:45:07            column=mycf:buyer_id, timestamp=1483959753596, value=10181  
+ 2010-03-26 19:45:07            column=mycf:id, timestamp=1483959753596, value=461  
+ 2010-03-26 19:45:07            column=mycf:ip, timestamp=1483959753596, value=123.127.164.252  
+ 2010-03-26 19:45:07            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-03-26 19:55:10            column=mycf:buyer_id, timestamp=1483959753596, value=10262  
+ 2010-03-26 19:55:10            column=mycf:id, timestamp=1483959753596, value=462  
+ 2010-03-26 19:55:10            column=mycf:ip, timestamp=1483959753596, value=123.127.164.252  
+ 2010-03-26 19:55:10            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-03-29 14:28:02            column=mycf:buyer_id, timestamp=1483959753596, value=20001  
+ 2010-03-29 14:28:02            column=mycf:id, timestamp=1483959753596, value=464  
+ 2010-03-29 14:28:02            column=mycf:ip, timestamp=1483959753596, value=221.208.129.117  
+ 2010-03-29 14:28:02            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-03-30 10:56:35            column=mycf:buyer_id, timestamp=1483959753596, value=20002  
+ 2010-03-30 10:56:35            column=mycf:id, timestamp=1483959753596, value=466  
+ 2010-03-30 10:56:35            column=mycf:ip, timestamp=1483959753596, value=222.44.94.235  
+ 2010-03-30 10:56:35            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-03-31 16:48:43            column=mycf:buyer_id, timestamp=1483959753596, value=10181  
+ 2010-03-31 16:48:43            column=mycf:id, timestamp=1483959753596, value=481  
+ 2010-03-31 16:48:43            column=mycf:ip, timestamp=1483959753596, value=123.127.164.252  
+ 2010-03-31 16:48:43            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-04-01 17:35:05            column=mycf:buyer_id, timestamp=1483959753596, value=10181  
+ 2010-04-01 17:35:05            column=mycf:id, timestamp=1483959753596, value=482  
+ 2010-04-01 17:35:05            column=mycf:ip, timestamp=1483959753596, value=123.127.164.252  
+ 2010-04-01 17:35:05            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-04-02 10:34:20            column=mycf:buyer_id, timestamp=1483959753596, value=10181  
+ 2010-04-02 10:34:20            column=mycf:id, timestamp=1483959753596, value=483  
+ 2010-04-02 10:34:20            column=mycf:ip, timestamp=1483959753596, value=123.127.164.252  
+ 2010-04-02 10:34:20            column=mycf:opt_type, timestamp=1483959753596, value=1  
+ 2010-04-04 16:38:22            column=mycf:buyer_id, timestamp=1483959753596, value=20001  
+ 2010-04-04 16:38:22            column=mycf:id, timestamp=1483959753596, value=484  
+ 2010-04-04 16:38:22            column=mycf:ip, timestamp=1483959753596, value=221.208.129.38  
+ 2010-04-04 16:38:22            column=mycf:opt_type, timestamp=1483959753596, value=1  
+8 row(s) in 0.2830 seconds  
+使用Sqoop将HBase中数据导出到Mysql中，暂时无法直接接口实现，需要借助其他途径去处理，比如：HBase=>HDFS=>Mysql或 HDFS=>Hive=>Mysql
+使用Sqoop将Mysql中record表中的数据，导入到Hive中的hiverecord表中。
+使用vim编辑用户环境变量
+
+vim ~/.bashrc  
+将以下内容追加到#hadoop下：
+
+#hadoop  
+export HADOOP_HOME=/apps/hadoop  
+export PATH=$HADOOP_HOME/bin:$PATH  
+export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:/apps/hive/lib/*  
+
+执行source，使用户环境变量生效。
+
+source /etc/profile  
+1.开启Hive,在Hive中创建hiverecord表，包含（id,buyer_id,dt,ip,opt_type）五个字段，字符类型均为varchar(100)，分隔符为‘\,’
+
+hive  
+
+create table hiverecord (id varchar(100),buyer_id varchar(100),dt varchar(100), ip varchar(100), opt_type varchar(100))  
+row format delimited fields terminated by ','  stored as textfile;  
+
+2.在linux命令行下，使用Sqoop将Mysql中record表导入Hive中。
+
+sqoop import \  
+--connect jdbc:mysql://localhost:3306/mydb?characterEncoding=UTF-8 \  
+--username root \  
+--password strongs \  
+--table record \  
+--hive-import \  
+--hive-table hiverecord \  
+--fields-terminated-by ',' -m 1  
+3.在hive下,查看Hive中hiverecord表。
+
+select * from hiverecord;  
+
+使用Sqoop将Hive表hiverecord表中的数据，导出到Mysql中的recordfromhive表中。
+1.首先在Mysql中创建表recordfromhive。
+
+create table recordfromhive like record;  
+2.在linux命令行下，使用sqoop开始导数据。
+
+sqoop export \  
+--connect jdbc:mysql://localhost:3306/mydb?characterEncoding=UTF-8 \  
+--username root \  
+--password strongs \  
+--table recordfromhive \  
+--export-dir /user/hive/warehouse/hiverecord/part-m-00000 \  
+--input-fields-terminated-by ','  
+3.导入完成，查看Mysql中recordfromhive表。
+
+select * from recordfromhive;  
+
+本任务考察Sqoop数据传递，并提供如下图所示数据Vegprices.txt，字段间用'\t'分隔，请完成以下操作：
+
+
+
+1.在MySQL数据库中创建表Vegpricessql，将数据Vegprices.txt导入到Vegpricessql表。
+
+2.使用Sqoop查看MySQL中的表Vegpricessql。
+
+3.使用Sqoop将MySQL中Vegpricessql表里的数据导入到HDFS上的/mysqoop目录，同时将该文件下载到本地/data/ans19目录中。
+
+4.在MySQL中，新建一张表pricefromhdfs，表结构与Vegpricessql表相同，将HDFS上/mysqoop/part-m-00000里的数据，导入到MySQL中的pricefromhdfs表中，并查看pricefromhdfs表的导入结果。

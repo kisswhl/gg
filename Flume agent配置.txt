@@ -1,0 +1,199 @@
+任务内容
+下面我们令Source为exec类型，搭配Channel的memory或file类型，Sink的logger或hdfs类型进行Flume配置实验。
+ 
+任务步骤
+1. 检查Hadoop相关进程，是否已经启动。若未启动，切换到/apps/hadoop/sbin目录下，启动Hadoop。
+ 
+jps  
+cd /apps/hadoop/sbin  
+./start-all.sh  
+2. 切换到/data/flume2目录下，如不存在需提前创建flume2文件夹，使用wget命令，在此目录下下载http://192.168.1.100:60000/allfiles/flume2中的文件。
+ 
+mkdir /data/flume2  
+cd /data/flume2  
+ 
+wget http://192.168.1.100:60000/allfiles/flume2/goods  
+wget http://192.168.1.100:60000/allfiles/flume2/exec_mem_logger.conf  
+wget http://192.168.1.100:60000/allfiles/flume2/exec_mem_hdfs.conf  
+wget http://192.168.1.100:60000/allfiles/flume2/exec_file_hdfs.conf  
+wget http://192.168.1.100:60000/allfiles/flume2/syslog_mem_logger.conf  
+3.实验场景1：source:exec，channel:memory，sink:logger，数据是/data/flume2/目录下的goods文件。
+场景1是最简单的一个Flume配置，它的结构是由以下几部分组成：首先定义各个组件，其次配置Source的类型为exec，并定义了命令command为tail -n 20 /data/flume2/goods(查看/data/flume2目录下的goods文件里的倒数20行记录)，然后配置Channel的类型为memory，Sink的类型为logger，最后将各个组件关联起来（设置Source的Channel为ch，Sink的Channel也为ch）。
+切换到/apps/flume/conf目录下，使用vim编辑conf文件，名为：exec_mem_logger.conf。
+ 
+cd /apps/flume/conf  
+vim exec_mem_logger.conf  
+将以下内容写入exec_mem_logger.conf文件中。
+ 
+#定义各个组件  
+agent1.sources  = src  
+agent1.channels = ch  
+agent1.sinks    = des  
+ 
+#配置source  
+agent1.sources.src.type = exec  
+agent1.sources.src.command = tail -n 20 /data/flume2/goods  
+ 
+#配置channel  
+agent1.channels.ch.type = memory  
+ 
+#配置sink  
+agent1.sinks.des.type = logger  
+ 
+##下面是把上面设置的组件关联起来（把点用线连起来）  
+agent1.sources.src.channels = ch  
+agent1.sinks.des.channel    = ch  
+启动flume命令：
+ 
+flume-ng agent -c /conf -f /apps/flume/conf/exec_mem_logger.conf -n agent1 -Dflume.root.logger=DEBUG,console  
+参数说明：# source:exec、channel:memory、 sink:logger
+-c 配置文件存放的目录 
+-f 所使用的配置文件路径
+-n agent的名称
+开启flume后，查看输出效果
+ 
+按ctrl+c停止flume。
+4.实验场景2：source:exec，channel:memory，sink:hdfs。 场景2相对于场景1，它的Sink类型发生了变化，变成了hdfs型。其结构中定义的各组件，Source配置没有变，在配置Channel时最大容量capacity为100000，通信的最大容量为100，在配置Sink时类型变为hdfs，路径设置为hdfs：//localhost:9000/myflume2/exec_mem_hdfs/%Y/%m/%d，里面的%Y/%m/%d代表年月日，数据类型为文本型，写入格式为Text格式，写入hdfs的文件是否新建有几种判断方式：rollInterval表示基于时间判断，单位是秒，当为0时，表示不基于时间判断。rollSize表示基于文件大小判断，单位是B，当为0时表示不基于大小判断，rollCount表示基于写入记录的条数来判断，当为0时，表示不基于条数来判断。idleTimeout表示基于空闲时间来判断，单位是秒，当为0时，代表不基于空闲时间来判断。最后和实验1一样通过设置Source和Sink的Channel都为ch，把Source、Channel和Sink三个组件关联起来。
+使用vim编辑conf文件，名为：exec_mem_hdfs.conf。
+ 
+cd /apps/flume/conf  
+vim exec_mem_hdfs.conf  
+将以下内容写入exec_mem_hdfs.conf文件中。
+ 
+#定义各个组件  
+agent1.sources  = src  
+agent1.channels = ch  
+agent1.sinks    = des  
+ 
+#配置source  
+agent1.sources.src.type = exec  
+agent1.sources.src.command = tail -n 20 /data/flume2/goods  
+ 
+#配置channel  
+agent1.channels.ch.type = memory  
+agent1.channels.ch.keep-alive = 30  
+agnet1.channels.ch.capacity = 1000000  
+agent1.channels.ch.transactionCapacity = 100  
+ 
+#配置sink  
+agent1.sinks.des.type = hdfs  
+agent1.sinks.des.hdfs.path = hdfs://localhost:9000/myflume2/exec_mem_hdfs/%Y%m%d/  
+agent1.sinks.des.hdfs.useLocalTimeStamp = true  
+ 
+#设置flume临时文件的前缀为 . 或 _ 在hive加载时，会忽略此文件。  
+agent1.sinks.des.hdfs.inUsePrefix=_  
+#设置flume写入文件的前缀是什么  
+agent1.sinks.des.hdfs.filePrefix = abc  
+agent1.sinks.des.hdfs.fileType = DataStream  
+agent1.sinks.des.hdfs.writeFormat = Text  
+#hdfs创建多久会新建一个文件，0为不基于时间判断,单位为秒  
+agent1.sinks.des.hdfs.rollInterval = 30  
+#hdfs写入的文件达到多大时，创建新文件 0为不基于空间大小,单位B  
+agent1.sinks.des.hdfs.rollSize = 100000  
+#hdfs有多少条消息记录时，创建文件，0为不基于条数判断  
+agent1.sinks.des.hdfs.rollCount = 10000  
+#hdfs空闲多久就新建一个文件,单位秒  
+agent1.sinks.des.hdfs.idleTimeout = 30  
+##下面是把上面设置的组件关联起来（把点用线连起来）  
+agent1.sources.src.channels = ch  
+agent1.sinks.des.channel    = ch  
+启动flume命令：
+ 
+flume-ng agent -c /conf -f /apps/flume/conf/exec_mem_hdfs.conf -n agent1 -Dflume.root.logger=DEBUG,console  
+在另一窗口，查看HDFS上的输出。
+ 
+hadoop fs -ls -R /myflume2  
+ 
+在执行flume命令的窗口，按ctrl+c停止flume。
+5.实验场景3：source:exec channel:file sink:hdfs。
+场景3相对于场景2把通道Channel的类型从memory改变为file。其结构在各组件定义，配置Source和设置组件的关联三方面与场景2一样。在配置Channel时把类型变为file型，并设置了检查点目录checkpointDir为/data/flume2/ckdir（用于检查Flume与HDFS是否正常通信），还设置了数据存储目录dataDir为/data/flume2/dataDir。在Sink配置中相对场景2增添了useLocalTimeStamp、inUsePrefix和filePrefix这三个设置。useLocalTimeStamp设置是判断是否开启使用本地时间戳，当设置为true是表示开启。inUsePrefix表示设置临时文件的前缀这里设置为"_"，filePrefix表示文件的前缀设置，这里设置为abc。
+使用vim编辑conf文件，名为：exec_file_hdfs.conf。
+ 
+cd /apps/flume/conf  
+vim exec_file_hdfs.conf  
+将以下内容写入到exec_file_hdfs.conf文件中。
+ 
+#定义各个组件  
+agent1.sources  = src  
+agent1.channels = ch  
+agent1.sinks    = des  
+ 
+#配置source  
+agent1.sources.src.type = exec  
+agent1.sources.src.command = tail -n 20 /data/flume2/goods  
+ 
+#配置channel  
+agent1.channels.ch.type = file  
+agent1.channels.ch.checkpointDir = /data/flume2/ckdir  
+agent1.channels.ch.dataDirs = /data/flume2/datadir  
+ 
+#配置sink  
+agent1.sinks.des.type = hdfs  
+agent1.sinks.des.hdfs.path = hdfs://localhost:9000/myflume2/exec_file_hdfs/%Y%m%d/  
+agent1.sinks.des.hdfs.useLocalTimeStamp = true  
+ 
+#设置flume临时文件的前缀为 . 或 _ 在hive加载时，会忽略此文件。  
+agent1.sinks.des.hdfs.inUsePrefix=_  
+#设置flume写入文件的前缀是什么  
+agent1.sinks.des.hdfs.filePrefix = abc  
+agent1.sinks.des.hdfs.fileType = DataStream  
+agent1.sinks.des.hdfs.writeFormat = Text  
+#hdfs创建多久会新建一个文件，0为不基于时间判断,单位为秒  
+agent1.sinks.des.hdfs.rollInterval = 30  
+#hdfs写入的文件达到多大时，创建新文件 0为不基于空间大小,单位B  
+agent1.sinks.des.hdfs.rollSize = 100000  
+#hdfs有多少条消息记录时，创建文件，0为不基于条数判断  
+agent1.sinks.des.hdfs.rollCount = 10000  
+#hdfs空闲多久就新建一个文件,单位秒  
+agent1.sinks.des.hdfs.idleTimeout = 30  
+##下面是把上面设置的组件关联起来（把点用线连起来）  
+agent1.sources.src.channels = ch  
+agent1.sinks.des.channel    = ch  
+启动flume命令：
+ 
+flume-ng agent -c /conf -f /apps/flume/conf/exec_file_hdfs.conf -n agent1 -Dflume.root.logger=DEBUG,console  
+在另一窗口，查看HDFS上的输出。
+ 
+hadoop fs -ls -R /myflume2  
+ 
+在执行flume命令的窗口，按ctrl+c停止flume。
+6.实验场景4：source:syslogtcp，channel:memory，sink:logger。
+场景4是一个比较简单的Flume组件配置。首先定义了各组件，然后配置Source，Source的类型配置为syslogtcp，监听端口为6868，主机名为localhost，接下来是配置了Channel的类型为memeory，Sink的类型为logger，最后用通过定义Source和Sink的Channel都为ch，来将Source、Channel和Sink三个相关联起来。
+使用vim编辑conf文件，名为：syslog_mem_logger.conf。
+ 
+cd /apps/flume/conf  
+vim syslog_mem_logger.conf  
+将以下内容写入到syslog_mem_logger.conf文件中。
+ 
+#定义各个组件  
+agent1.sources  = src  
+agent1.channels = ch  
+agent1.sinks    = des  
+ 
+#配置source  
+agent1.sources.src.type = syslogtcp  
+agent1.sources.src.port = 6868  
+agent1.sources.src.host = localhost  
+ 
+#配置channel  
+agent1.channels.ch.type = memory  
+ 
+#配置sink  
+agent1.sinks.des.type = logger  
+ 
+##下面是把上面设置的组件关联起来（把点用线连起来）  
+agent1.sources.src.channels = ch  
+agent1.sinks.des.channel    = ch  
+启动flume命令：
+ 
+flume-ng agent -c /conf -f /apps/flume/conf/syslog_mem_logger.conf -n agent1 -Dflume.root.logger=DEBUG,console  
+在另一个窗口，向6868端口发送数据：
+ 
+echo "hello can you hear me?" | nc localhost 6868  
+在刚才执行启动flume命令的窗口查看输出
+
+1.切换到/data文件夹，下载实验所需数据products文件。
+
+2.切换到/apps/flume/conf目录，创建exec_mem_hdfs.conf文件，定义Source类型为exec，Channel类型为memory，Sink类型为hdfs。实现功能为：抓取products文件前20行记录，结果输出至HDFS中的/myflume/out1目录下，并将HDFS生成的文件下载至/data/ans26文件夹中。
+
+3.切换到/apps/flume/conf目录，创建syslog_mem_hdfsandlogger.conf文件，要求定义Source类型为syslogtcp，Channel类型为memory，Sink类型为logger和hdfs。实现功能为：Source监听6868端口，尝试向6868端口发送"Hello World"，将接收到的数据分别输出至/data/logger文件和HDFS的/myflume/out2目录中。

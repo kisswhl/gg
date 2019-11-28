@@ -1,0 +1,124 @@
+1.打开终端模拟器，切换到/apps/hadoop/sbin目录下，启动Hadoop
+cd /apps/hadoop/sbin  
+./start-all.sh  
+ 
+除了直接执行start-all.sh外，还可以分步启动start-dfs.sh和start-yarn.sh。
+2.执行jps，检查一下Hadoop相关进程是否启动
+jps  
+ 
+3.在/目录下创建一个test1文件夹
+hadoop fs -mkdir /test1  
+
+4.在Hadoop中的test1文件夹中创建一个file.txt文件 
+hadoop fs -touchz /test1/file.txt  
+
+5.查看根目录下所有文件
+hadoop fs -ls /  
+ 
+6.还可以使用ls -R的方式递归查看根下所有文件
+hadoop fs -ls -R /  
+ 
+7.将Hadoop根下test1目录中的file.txt文件，移动到根下并重命名为file2.txt 
+hadoop fs -mv /test1/file.txt /file2.txt  
+Hadoop中的mv用法同Linux中的一样，都可以起到移动文件和重命名的作用。
+
+8.将Hadoop根下的file2.txt文件复制到test1目录下
+hadoop fs -cp /file2.txt /test1  
+
+9.在Linux本地/data目录下，创建一个data.txt文件，并向其中写入hello hadoop！
+cd /data  
+touch data.txt  
+echo hello hadoop! >> data.txt  
+
+10.将Linux本地/data目录下的data.txt文件，上传到HDFS中的/test1目录下
+hadoop fs -put /data/data.txt /test1  
+
+11.查看Hadoop中/test1目录下的data.txt文件 
+hadoop fs -cat /test1/data.txt  
+ 
+12.除此之外还可以使用tail方法
+hadoop fs -tail /test1/data.txt  
+tail方法是将文件尾部1K字节的内容输出。支持-f选项，行为和Unix中一致。
+
+13.查看Hadoop中/test1目录下的data.txt文件大小
+hadoop fs -du -s /test1/data.txt  
+-du 后面可以不加-s，直接写目录表示查看该目录下所有文件大小
+
+14.text方法可以将源文件输出为文本格式。允许的格式是zip和TextRecordInputStream。
+hadoop fs -text /test1/data.txt  
+ 
+15.stat方法可以返回指定路径的统计信息，有多个参数可选，当使用-stat选项但不指定format时候，只打印文件创建日期，相当于%y
+hadoop fs -stat /test1/data.txt  
+ 
+下面列出了format的形式：
+%b：打印文件大小（目录为0）
+%n：打印文件名
+%o：打印block size （我们要的值）
+%r：打印备份数
+%y：打印UTC日期 yyyy-MM-dd HH:mm:ss
+%Y：打印自1970年1月1日以来的UTC微秒数
+%F：目录打印directory, 文件打印regular file
+
+16.将Hadoop中/test1目录下的data.txt文件，下载到Linux本地/apps目录中
+hadoop fs -get /test1/data.txt /apps  
+
+17.查看一下/apps目录下是否存在data.txt文件
+ls /apps  
+ 
+18.使用chown方法，改变Hadoop中/test1目录中的data.txt文件拥有者为root，使用-R将使改变在目录结构下递归进行。
+hadoop fs -chown root /test1/data.txt  
+
+19.使用chmod方法，赋予Hadoop中/test1目录中的data.txt文件777权限
+hadoop fs -chmod 777 /test1/data.txt 
+
+20.删除Hadoop根下的file2.txt文件 
+hadoop fs -rm /file2.txt  
+ 
+21.删除Hadoop根下的test1目录
+hadoop fs -rm -r /test1  
+ 
+22.当在Hadoop中设置了回收站功能时，删除的文件会保留在回收站中，可以使用expunge方法清空回收站。 
+hadoop fs -expunge  
+
+在分布式文件系统启动的时候，开始的时候会有安全模式，当分布式文件系统处于安全模式的情况下，文件系统中的内容不允许修改也不允许删除，直到安全模式结束。安全模式主要是为了系统启动的时候检查各个DataNode上数据块的有效性，同时根据策略必要的复制或者删除部分数据块。运行期通过命令也可以进入安全模式。在实践过程中，系统启动的时候去修改和删除文件也会有安全模式不允许修改的出错提示，只需要等待一会儿即可。
+23.使用Shell命令执行Hadoop自带的WordCount
+首先切换到/data目录下，使用vim编辑一个data.txt文件，内容为:hello world hello hadoop hello ipieuvre
+cd /data  
+vim data.txt  
+在HDFS的根下创建in目录，并将/data下的data.txt文件上传到HDFS中的in目录
+hadoop fs -put /data/data.txt /in  
+执行hadoop jar命令，在hadoop的/apps/hadoop/share/hadoop/mapreduce路径下存在hadoop-mapreduce-examples-2.6.0-cdh5.4.5.jar包，我们执行其中的worldcount类，数据来源为HDFS的/in目录，数据输出到HDFS的/out目录
+hadoop jar /apps/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.6.0-cdh5.4.5.jar wordcount /in /out  
+查看HDFS中的/out目录
+hadoop fs -ls /out  
+hadoop fs -cat /out/*  
+ 
+24.进入Hadoop安全模式
+hdfs dfsadmin -safemode enter  
+ 
+25.退出Hadoop安全模式
+hdfs dfsadmin -safemode leave  
+ 
+26.切换到/apps/hadoop/sbin目录下，关闭Hadoop
+cd /apps/hadoop/sbin  
+./stop-all.sh  
+
+1.在HDFS根目录下创建bigdata文件夹。
+
+2.在HDFS中的/bigdata目录下创建science.txt文件并查看是否创建成功。
+
+3.将HDFS中的/bigdata/science.txt文件改名为/bigdata/scienceit.txt。
+
+4.将scienceit.txt文件复制到HDFS的根目录下。
+
+5.在Linux本地/data/目录下创建example.txt文件，内容为：“hello hadoop，hello spark，hello AI”，并上传到HDFS的/bigdata目录下。
+
+6.查看HDFS中/bigdata/example.txt文件大小。
+
+7.查看HDFS中/bigdata/example.txt文件的备份数。
+
+8.将HDFS中/bigdata/example.txt文件下载到本地/data/ans14目录下。
+
+9.删除HDFS中/bigdata/scienceit.txt文件。
+
+10.删除HDFS中/bigdata/目录。
